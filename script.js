@@ -1,137 +1,33 @@
-// --- Firebaseのインポート ---
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// --- 初期データ ---
+let locations = ["Aさん宅", "Bさん宅"];
 
-// ⚠️ご自身のFirebaseコンソールの設定情報をここに入れてください
-const firebaseConfig = {
-    apiKey: "AIzaSyDwHracU4oGb2GRMBbqf-YwM6oVsjnI7uo",
-    authDomain: "sinnsei22-e6297.firebaseapp.com",
-    projectId: "sinnsei22-e6297",
-    storageBucket: "sinnsei22-e6297.firebasestorage.app",
-    messagingSenderId: "865822138754",
-    appId: "1:865822138754:web:04b5d8c5c0ec799c886f9b"
-  };
+let stocks = [
+  { id: 1, location: "Aさん宅", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。サカイの引っ越し箱の横に保管。" },
+  { id: 2, location: "Aさん宅", name: "ビス・釘セット", homeCount: 5, churchCount: 2, image: null, memo: "長めのネジが中心です。" },
+  { id: 3, location: "Bさん宅", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。雨に濡れないようビニールカバー保管。" }
+];
 
-
-// Firebaseの初期化
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// --- データ格納用変数 ---
-let locations = [];
-let stocks = [];
-let histories = [];
+let histories = [
+  { time: "2026/11/06 14:00", text: "山田：Aさん宅から貸出へ 木材（ベニヤ板）を 5個 移動しました" }
+];
 
 let currentUploadedImage = null;
 let isStockManageMode = false;
 let currentModalStockId = null;
 
-// --- アプリの初期化（Firestoreからデータをロードしてから画面を構築） ---
-document.addEventListener("DOMContentLoaded", async () => {
+// --- アプリの初期化 ---
+document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
   setupImagePreview();
-  setupModal();
+  setupForms();
   setupModeToggle();
-
-  // Firestoreからデータを読み込む
-  await loadDataFromFirestore();
-
-  setupForms(); // フォーム送信イベントのセットアップ
+  setupModal();
+  renderStockList();
+  renderHistoryList();
+  renderLocationManageList();
+  updateLocationSelectOptions();
+  updateEditSelectOptions();
 });
-
-// --- 画像自動圧縮・縮小関数 ---
-function compressImage(file, maxWidth = 800, quality = 0.7) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
-        resolve(compressedDataUrl);
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
-}
-
-// --- Firestoreからのデータ読み込み ---
-async function loadDataFromFirestore() {
-  try {
-    // 1. locationsの読み込み
-    const locSnap = await getDoc(doc(db, "settings", "locationsData"));
-    if (locSnap.exists()) {
-      locations = locSnap.data().list || ["Aさん宅", "Bさん宅"];
-    } else {
-      locations = ["Aさん宅", "Bさん宅"];
-      await setDoc(doc(db, "settings", "locationsData"), { list: locations });
-    }
-
-    // 2. stocksの読み込み
-    const stocksSnapshot = await getDocs(collection(db, "stocks"));
-    stocks = [];
-    stocksSnapshot.forEach((docSnap) => {
-      stocks.push({ id: docSnap.id, ...docSnap.data() });
-    });
-    if (stocks.length === 0) {
-      stocks = [
-        { id: "1", location: "Aさん宅", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
-        { id: "2", location: "Bさん宅", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。" }
-      ];
-      for (const s of stocks) {
-        await setDoc(doc(db, "stocks", s.id), s);
-      }
-    }
-
-    // 3. historiesの読み込み
-    const histSnap = await getDoc(doc(db, "settings", "historiesData"));
-    if (histSnap.exists()) {
-      histories = histSnap.data().list || [];
-    } else {
-      histories = [{ time: "2026/11/06 14:00", text: "アプリを初期化しました" }];
-      await setDoc(doc(db, "settings", "historiesData"), { list: histories });
-    }
-
-    // 画面を描画
-    renderStockList();
-    renderHistoryList();
-    renderLocationManageList();
-    updateLocationSelectOptions();
-    updateEditSelectOptions();
-
-  } catch (error) {
-    console.error("データの読み込みに失敗しました: ", error);
-    alert("データの読み込みに失敗しました。コンソールを確認してください。");
-  }
-}
-
-// --- Firestoreへの設定保存ヘルパー ---
-async function saveLocationsToFirestore() {
-  await setDoc(doc(db, "settings", "locationsData"), { list: locations });
-}
-
-async function saveHistoriesToFirestore() {
-  await setDoc(doc(db, "settings", "historiesData"), { list: histories });
-}
 
 // 1. タブ切り替え
 function setupTabs() {
@@ -157,6 +53,7 @@ function setupModeToggle() {
 
   btn.addEventListener("click", () => {
     isStockManageMode = !isStockManageMode;
+
     if (isStockManageMode) {
       btn.textContent = "確認モードに戻す";
       btn.classList.add("active-mode");
@@ -218,9 +115,10 @@ function renderStockList() {
     listContainer.appendChild(card);
   }
 
+  // 行クリックイベントの登録
   document.querySelectorAll(".stock-item-row").forEach(row => {
     row.addEventListener("click", () => {
-      const stockId = row.getAttribute("data-id");
+      const stockId = parseInt(row.getAttribute("data-id"));
       openStockDetailModal(stockId);
     });
   });
@@ -257,12 +155,13 @@ function openStockDetailModal(stockId) {
 
   const memoText = stock.memo ? escapeHTML(stock.memo) : "メモはありません";
 
+  // 管理モードの場合だけ「編集」「削除」ボタンを表示
   let actionButtonsHTML = "";
   if (isStockManageMode) {
     actionButtonsHTML = `
       <div class="modal-actions">
-        <button class="btn-modal-edit" onclick="switchToEditMode('${stock.id}')">編集する</button>
-        <button class="btn-modal-delete" onclick="deleteStockModal('${stock.id}')">削除する</button>
+        <button class="btn-modal-edit" onclick="switchToEditMode(${stock.id})">編集する</button>
+        <button class="btn-modal-delete" onclick="deleteStockModal(${stock.id})">削除する</button>
       </div>
     `;
   }
@@ -291,6 +190,7 @@ window.switchToEditMode = function(stockId) {
 
   const body = document.getElementById("modal-body");
 
+  // 保管場所の選択肢を作成
   let locationOptions = "";
   locations.forEach(loc => {
     const selected = loc === stock.location ? "selected" : "";
@@ -323,27 +223,27 @@ window.switchToEditMode = function(stockId) {
       <textarea id="edit-modal-memo" rows="3">${escapeHTML(stock.memo || "")}</textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn-modal-save" onclick="saveStockModal('${stock.id}')">保存する</button>
-      <button class="btn-modal-delete" onclick="openStockDetailModal('${stock.id}')">取消</button>
+      <button class="btn-modal-save" onclick="saveStockModal(${stock.id})">保存する</button>
+      <button class="btn-modal-delete" onclick="openStockDetailModal(${stock.id})">取消</button>
     </div>
   `;
 
+  // 画像変更用のイベント監視
   const imgInput = document.getElementById("edit-modal-image");
-  imgInput.addEventListener("change", async (e) => {
+  imgInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
-      try {
-        stock.tempImage = await compressImage(file, 800, 0.7);
-        alert("画像の圧縮が完了しました！「保存する」を押して反映させてください。");
-      } catch (error) {
-        console.error("画像の圧縮に失敗しました", error);
-      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        stock.tempImage = event.target.result; // 一時保存
+      };
+      reader.readAsDataURL(file);
     }
   });
 };
 
 // 7. モーダルでの編集内容を保存
-window.saveStockModal = async function(stockId) {
+window.saveStockModal = function(stockId) {
   const stock = stocks.find(s => s.id === stockId);
   if (!stock) return;
 
@@ -372,30 +272,20 @@ window.saveStockModal = async function(stockId) {
     delete stock.tempImage;
   }
 
-  await updateDoc(doc(db, "stocks", stock.id), {
-    name: stock.name,
-    location: stock.location,
-    homeCount: stock.homeCount,
-    churchCount: stock.churchCount,
-    memo: stock.memo,
-    image: stock.image || null
-  });
-
   addHistory(`【資材編集】「${stock.name}」の内容を更新しました`);
   renderStockList();
   updateEditSelectOptions();
-  openStockDetailModal(stockId);
+  openStockDetailModal(stockId); // 詳細画面に戻す
   alert("変更を保存しました！");
 };
 
 // 8. モーダルから資材削除
-window.deleteStockModal = async function(stockId) {
+window.deleteStockModal = function(stockId) {
   const stockIndex = stocks.findIndex(s => s.id === stockId);
   if (stockIndex === -1) return;
 
   const target = stocks[stockIndex];
   if (confirm(`「${target.name}」（${target.location}）を削除してもよろしいですか？`)) {
-    await deleteDoc(doc(db, "stocks", stockId));
     addHistory(`【資材削除】「${target.name}」（${target.location}）を削除しました`);
     stocks.splice(stockIndex, 1);
     document.getElementById("modal-detail").style.display = "none";
@@ -404,26 +294,22 @@ window.deleteStockModal = async function(stockId) {
   }
 };
 
-// 9. 画像プレビュー（自動圧縮付き）
+// 9. 画像プレビュー
 function setupImagePreview() {
   const imageInput = document.getElementById("reg-image");
   const previewBox = document.getElementById("image-preview");
 
   if (!imageInput) return;
 
-  imageInput.addEventListener("change", async (e) => {
+  imageInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
-      try {
-        previewBox.innerHTML = "画像を圧縮中...";
-        currentUploadedImage = await compressImage(file, 800, 0.7);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        currentUploadedImage = event.target.result;
         previewBox.innerHTML = `<img src="${currentUploadedImage}" alt="プレビュー">`;
-      } catch (error) {
-        console.error("画像の処理に失敗しました", error);
-        alert("画像の読み込みに失敗しました。");
-        currentUploadedImage = null;
-        previewBox.innerHTML = "画像未選択";
-      }
+      };
+      reader.readAsDataURL(file);
     } else {
       currentUploadedImage = null;
       previewBox.innerHTML = "画像未選択";
@@ -448,7 +334,7 @@ function renderLocationManageList() {
   });
 
   document.querySelectorAll(".btn-delete-location").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
+    btn.addEventListener("click", (e) => {
       const locName = e.target.getAttribute("data-location");
       const hasItems = stocks.some(s => s.location === locName);
       if (hasItems) {
@@ -458,7 +344,6 @@ function renderLocationManageList() {
 
       if (confirm(`宅「${locName}」を削除してもよろしいですか？`)) {
         locations = locations.filter(l => l !== locName);
-        await saveLocationsToFirestore();
         renderLocationManageList();
         updateLocationSelectOptions();
         renderStockList();
@@ -513,7 +398,7 @@ function renderHistoryList() {
 function setupForms() {
   const locForm = document.getElementById("form-add-location");
   if (locForm) {
-    locForm.addEventListener("submit", async (e) => {
+    locForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const newLocName = document.getElementById("new-location-name").value.trim();
 
@@ -524,7 +409,6 @@ function setupForms() {
       }
 
       locations.push(newLocName);
-      await saveLocationsToFirestore();
       updateLocationSelectOptions();
       renderStockList();
       renderLocationManageList();
@@ -535,7 +419,7 @@ function setupForms() {
 
   const regForm = document.getElementById("form-register");
   if (regForm) {
-    regForm.addEventListener("submit", async (e) => {
+    regForm.addEventListener("submit", (e) => {
       e.preventDefault();
 
       const name = document.getElementById("reg-name").value;
@@ -544,8 +428,8 @@ function setupForms() {
       const churchCount = parseInt(document.getElementById("reg-church-count").value) || 0;
       const memo = document.getElementById("reg-memo").value.trim();
 
-      const newId = String(Date.now());
       const newStock = {
+        id: Date.now(),
         name: name,
         location: location,
         homeCount: homeCount,
@@ -554,9 +438,7 @@ function setupForms() {
         memo: memo
       };
 
-      await setDoc(doc(db, "stocks", newId), newStock);
-      stocks.push({ id: newId, ...newStock });
-
+      stocks.push(newStock);
       addHistory(`【新規登録】${location}に「${name}」を登録しました。（宅:${homeCount}個 / 貸出:${churchCount}個）`);
 
       renderStockList();
@@ -574,10 +456,10 @@ function setupForms() {
 
   const editForm = document.getElementById("form-edit");
   if (editForm) {
-    editForm.addEventListener("submit", async (e) => {
+    editForm.addEventListener("submit", (e) => {
       e.preventDefault();
 
-      const stockId = document.getElementById("edit-stock-id").value;
+      const stockId = parseInt(document.getElementById("edit-stock-id").value);
       const type = document.getElementById("edit-type").value;
       const count = parseInt(document.getElementById("edit-count").value) || 0;
       const userName = document.getElementById("edit-user").value;
@@ -610,12 +492,6 @@ function setupForms() {
         addHistory(`${userName}：貸出中の「${targetStock.name}」を ${count}個 利用（消費）しました`);
       }
 
-      await updateDoc(doc(db, "stocks", targetStock.id), {
-        homeCount: targetStock.homeCount,
-        churchCount: targetStock.churchCount
-      });
-      await saveHistoriesToFirestore();
-
       renderStockList();
       editForm.reset();
       alert("在庫情報を更新しました！");
@@ -627,8 +503,6 @@ function addHistory(text) {
   const now = new Date();
   const timeStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
   histories.unshift({ time: timeStr, text: text });
-  if (histories.length > 50) histories.pop();
-  saveHistoriesToFirestore();
   renderHistoryList();
 }
 
