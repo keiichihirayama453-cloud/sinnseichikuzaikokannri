@@ -23,6 +23,8 @@ let locations = [];
 let stocks = [];
 let histories = [];
 
+const CATEGORIES = ["材料類", "衣装類", "小物類", "装飾類"];
+
 let currentUploadedImage = null;
 let isStockManageMode = false;
 let currentModalStockId = null;
@@ -53,7 +55,6 @@ function compressImage(file, maxWidth = 800, quality = 0.7) {
         let width = img.width;
         let height = img.height;
 
-        // 最大幅を超える場合は縦横比を維持して縮小
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
@@ -65,7 +66,6 @@ function compressImage(file, maxWidth = 800, quality = 0.7) {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 軽量なJPEGフォーマットに変換・圧縮
         const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
         resolve(compressedDataUrl);
       };
@@ -96,8 +96,8 @@ async function loadDataFromFirestore() {
 
     if (stocks.length === 0) {
       stocks = [
-        { id: "1", location: "Aさん宅", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
-        { id: "2", location: "Bさん宅", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。" }
+        { id: "1", location: "Aさん宅", category: "材料類", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
+        { id: "2", location: "Bさん宅", category: "材料類", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。" }
       ];
       for (const s of stocks) {
         await setDoc(doc(db, "stocks", s.id), s);
@@ -169,7 +169,7 @@ function setupModeToggle() {
   });
 }
 
-// 3. 在庫一覧表示
+// 3. 在庫一覧表示（宅内を分類ごとにグループ化して表示）
 function renderStockList() {
   const listContainer = document.getElementById("stock-list");
   if (!listContainer) return;
@@ -191,32 +191,46 @@ function renderStockList() {
     const card = document.createElement("div");
     card.className = "location-card";
 
-    let itemsHTML = "";
-    if (items.length === 0) {
-      itemsHTML = `<div style="font-size:0.85rem; color:#888; padding:5px 0;">登録されている資材はありません</div>`;
-    } else {
-      items.forEach(stock => {
-        itemsHTML += `
-          <div class="stock-item-row" data-id="${stock.id}">
-            <div class="stock-info">
-              <div class="stock-title">${escapeHTML(stock.name)}</div>
-              <div class="stock-counts">
-                <span class="count-badge">宅: <strong>${stock.homeCount}</strong>個</span>
-                <span class="count-badge">貸出: <strong>${stock.churchCount}</strong>個</span>
+    let locationHTML = `<div class="location-header">🏠 ${escapeHTML(location)}</div>`;
+    let categoriesHTML = "";
+    let hasAnyItem = false;
+
+    // 分類ごとにアイテムを仕分けして表示
+    CATEGORIES.forEach(cat => {
+      const catItems = items.filter(s => (s.category || "材料類") === cat);
+
+      if (catItems.length > 0) {
+        hasAnyItem = true;
+        let itemsHTML = "";
+        catItems.forEach(stock => {
+          itemsHTML += `
+            <div class="stock-item-row" data-id="${stock.id}">
+              <div class="stock-info">
+                <div class="stock-title">${escapeHTML(stock.name)}</div>
+                <div class="stock-counts">
+                  <span class="count-badge">宅: <strong>${stock.homeCount}</strong>個</span>
+                  <span class="count-badge">貸出: <strong>${stock.churchCount}</strong>個</span>
+                </div>
               </div>
+              <div style="color: #bbb; font-size: 0.9rem;">〉</div>
             </div>
-            <div style="color: #bbb; font-size: 0.9rem;">〉</div>
+          `;
+        });
+
+        categoriesHTML += `
+          <div class="category-group" style="margin-bottom: 10px;">
+            <div style="font-size: 0.8rem; font-weight: bold; color: #3182ce; background: #ebf8ff; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px;">📂 ${cat}</div>
+            ${itemsHTML}
           </div>
         `;
-      });
+      }
+    });
+
+    if (!hasAnyItem) {
+      categoriesHTML = `<div style="font-size:0.85rem; color:#888; padding:5px 0;">登録されている資材はありません</div>`;
     }
 
-    card.innerHTML = `
-      <div class="location-header">🏠 ${escapeHTML(location)}</div>
-      <div class="stock-items-container">
-        ${itemsHTML}
-      </div>
-    `;
+    card.innerHTML = locationHTML + `<div class="stock-items-container">${categoriesHTML}</div>`;
     listContainer.appendChild(card);
   }
 
@@ -258,6 +272,7 @@ function openStockDetailModal(stockId) {
     : `<div class="detail-img" style="display:flex;align-items:center;justify-content:center;color:#888;">画像なし</div>`;
 
   const memoText = stock.memo ? escapeHTML(stock.memo) : "メモはありません";
+  const categoryText = stock.category || "材料類";
 
   let actionButtonsHTML = "";
   if (isStockManageMode) {
@@ -273,6 +288,9 @@ function openStockDetailModal(stockId) {
     <h3 style="margin-bottom:12px; border-bottom:2px solid #edf2f7; padding-bottom:6px;">${escapeHTML(stock.name)}</h3>
     ${imgHTML}
     <div style="font-size:0.9rem; margin-bottom: 6px;">
+      <strong>分類:</strong> 📂 ${escapeHTML(categoryText)}
+    </div>
+    <div style="font-size:0.9rem; margin-bottom: 6px;">
       <strong>保管場所:</strong> 🏠 ${escapeHTML(stock.location)}
     </div>
     <div style="font-size:0.9rem; margin-bottom: 8px;">
@@ -286,7 +304,7 @@ function openStockDetailModal(stockId) {
   modal.style.display = "flex";
 }
 
-// 6. モーダル内を「編集フォーム」に切り替える
+// 6. モーダル内を「編集フォーム」に切り替える（分類の選択も可能に）
 window.switchToEditMode = function(stockId) {
   const stock = stocks.find(s => s.id === stockId);
   if (!stock) return;
@@ -299,11 +317,21 @@ window.switchToEditMode = function(stockId) {
     locationOptions += `<option value="${loc}" ${selected}>${loc}</option>`;
   });
 
+  let categoryOptions = "";
+  CATEGORIES.forEach(cat => {
+    const selected = cat === (stock.category || "材料類") ? "selected" : "";
+    categoryOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
+  });
+
   body.innerHTML = `
     <h3 style="margin-bottom:12px;">資材の編集</h3>
     <div class="form-group" style="margin-bottom:10px;">
       <label>資材名</label>
       <input type="text" id="edit-modal-name" value="${escapeHTML(stock.name)}">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>分類</label>
+      <select id="edit-modal-category">${categoryOptions}</select>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
       <label>保管場所</label>
@@ -330,7 +358,6 @@ window.switchToEditMode = function(stockId) {
     </div>
   `;
 
-  // モーダル側での画像変更時も自動圧縮を適応
   const imgInput = document.getElementById("edit-modal-image");
   imgInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -352,6 +379,7 @@ window.saveStockModal = async function(stockId) {
   if (!stock) return;
 
   const newName = document.getElementById("edit-modal-name").value.trim();
+  const newCategory = document.getElementById("edit-modal-category").value;
   const newLocation = document.getElementById("edit-modal-location").value;
   const newHome = parseInt(document.getElementById("edit-modal-home").value);
   const newChurch = parseInt(document.getElementById("edit-modal-church").value);
@@ -367,6 +395,7 @@ window.saveStockModal = async function(stockId) {
   }
 
   stock.name = newName;
+  stock.category = newCategory;
   stock.location = newLocation;
   stock.homeCount = newHome;
   stock.churchCount = newChurch;
@@ -378,6 +407,7 @@ window.saveStockModal = async function(stockId) {
 
   await updateDoc(doc(db, "stocks", stock.id), {
     name: stock.name,
+    category: stock.category,
     location: stock.location,
     homeCount: stock.homeCount,
     churchCount: stock.churchCount,
@@ -420,7 +450,6 @@ function setupImagePreview() {
     if (file) {
       try {
         previewBox.innerHTML = "画像を圧縮中...";
-        // 最大幅800px・画質70%で高速＆軽量圧縮
         currentUploadedImage = await compressImage(file, 800, 0.7);
         previewBox.innerHTML = `<img src="${currentUploadedImage}" alt="プレビュー">`;
       } catch (error) {
@@ -544,12 +573,14 @@ function setupForms() {
       e.preventDefault();
 
       const nameInput = document.getElementById("reg-name");
+      const categorySelect = document.getElementById("reg-category");
       const locationSelect = document.getElementById("reg-location-select");
       const homeCountInput = document.getElementById("reg-home-count");
       const churchCountInput = document.getElementById("reg-church-count");
       const memoInput = document.getElementById("reg-memo");
 
       const name = nameInput ? nameInput.value.trim() : "";
+      const category = categorySelect ? categorySelect.value : "材料類";
       const location = locationSelect ? locationSelect.value : "";
       const homeCount = homeCountInput ? parseInt(homeCountInput.value) || 0 : 0;
       const churchCount = churchCountInput ? parseInt(churchCountInput.value) || 0 : 0;
@@ -563,6 +594,7 @@ function setupForms() {
       const newId = String(Date.now());
       const newStock = {
         name: name,
+        category: category,
         location: location,
         homeCount: homeCount,
         churchCount: churchCount,
@@ -573,7 +605,7 @@ function setupForms() {
       await setDoc(doc(db, "stocks", newId), newStock);
       stocks.push({ id: newId, ...newStock });
 
-      addHistory(`【新規登録】${location}に「${name}」を登録しました。（宅:${homeCount}個 / 貸出:${churchCount}個）`);
+      addHistory(`【新規登録】${location}に「${name}（${category}）」を登録しました。（宅:${homeCount}個 / 貸出:${churchCount}個）`);
 
       renderStockList();
       updateEditSelectOptions();
