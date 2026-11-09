@@ -4,16 +4,15 @@ import {
   getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ⚠️ここをご自身のFirebaseコンソールの設定に書き換えてください
- const firebaseConfig = {
-    apiKey: "AIzaSyDwHracU4oGb2GRMBbqf-YwM6oVsjnI7uo",
-    authDomain: "sinnsei22-e6297.firebaseapp.com",
-    projectId: "sinnsei22-e6297",
-    storageBucket: "sinnsei22-e6297.firebasestorage.app",
-    messagingSenderId: "865822138754",
-    appId: "1:865822138754:web:04b5d8c5c0ec799c886f9b"
-  };
-
+// Firebaseコンソールの設定情報
+const firebaseConfig = {
+  apiKey: "AIzaSyDwHracU4oGb2GRMBbqf-YwM6oVsjnI7uo",
+  authDomain: "sinnsei22-e6297.firebaseapp.com",
+  projectId: "sinnsei22-e6297",
+  storageBucket: "sinnsei22-e6297.firebasestorage.app",
+  messagingSenderId: "865822138754",
+  appId: "1:865822138754:web:04b5d8c5c0ec799c886f9b"
+};
 
 // Firebaseの初期化
 const app = initializeApp(firebaseConfig);
@@ -28,7 +27,7 @@ let currentUploadedImage = null;
 let isStockManageMode = false;
 let currentModalStockId = null;
 
-// --- アプリの初期化（Firestoreからデータをロードしてから画面を構築） ---
+// --- アプリの初期化 ---
 document.addEventListener("DOMContentLoaded", async () => {
   setupTabs();
   setupImagePreview();
@@ -38,13 +37,48 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Firestoreからデータを読み込む
   await loadDataFromFirestore();
 
-  setupForms(); // フォーム送信イベントでDB更新を行うため、ここでセットアップ
+  setupForms();
 });
+
+// --- 画像自動リサイズ・圧縮関数 ---
+function compressImage(file, maxWidth = 800, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // 最大幅を超える場合は縦横比を維持して縮小
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // 軽量なJPEGフォーマットに変換・圧縮
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+}
 
 // --- Firestoreからのデータ読み込み ---
 async function loadDataFromFirestore() {
   try {
-    // 1. locationsの読み込み（Firestoreの "settings" コレクションの "locationsDoc" から取得する例）
+    // 1. locationsの読み込み
     const locSnap = await getDoc(doc(db, "settings", "locationsData"));
     if (locSnap.exists()) {
       locations = locSnap.data().list || ["Aさん宅", "Bさん宅"];
@@ -59,7 +93,7 @@ async function loadDataFromFirestore() {
     stocksSnapshot.forEach((docSnap) => {
       stocks.push({ id: docSnap.id, ...docSnap.data() });
     });
-    // 初回データが空の場合のサンプル
+
     if (stocks.length === 0) {
       stocks = [
         { id: "1", location: "Aさん宅", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
@@ -92,7 +126,7 @@ async function loadDataFromFirestore() {
   }
 }
 
-// --- Firestoreへの設定（locationsやhistories）保存ヘルパー ---
+// --- Firestoreへの設定保存ヘルパー ---
 async function saveLocationsToFirestore() {
   await setDoc(doc(db, "settings", "locationsData"), { list: locations });
 }
@@ -296,20 +330,23 @@ window.switchToEditMode = function(stockId) {
     </div>
   `;
 
+  // モーダル側での画像変更時も自動圧縮を適応
   const imgInput = document.getElementById("edit-modal-image");
-  imgInput.addEventListener("change", (e) => {
+  imgInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        stock.tempImage = event.target.result;
-      };
-      reader.readAsDataURL(file);
+      try {
+        stock.tempImage = await compressImage(file, 800, 0.7);
+        alert("画像の準備が完了しました！「保存する」を押すと保存されます。");
+      } catch (error) {
+        console.error("画像の処理に失敗しました", error);
+        alert("画像の処理に失敗しました。");
+      }
     }
   });
 };
 
-// 7. モーダルでの編集内容を保存（Firestore更新）
+// 7. モーダルでの編集内容を保存
 window.saveStockModal = async function(stockId) {
   const stock = stocks.find(s => s.id === stockId);
   if (!stock) return;
@@ -339,7 +376,6 @@ window.saveStockModal = async function(stockId) {
     delete stock.tempImage;
   }
 
-  // Firestoreのデータを更新
   await updateDoc(doc(db, "stocks", stock.id), {
     name: stock.name,
     location: stock.location,
@@ -356,7 +392,7 @@ window.saveStockModal = async function(stockId) {
   alert("変更を保存しました！");
 };
 
-// 8. モータールから資材削除（Firestore削除）
+// 8. モーダルから資材削除
 window.deleteStockModal = async function(stockId) {
   const stockIndex = stocks.findIndex(s => s.id === stockId);
   if (stockIndex === -1) return;
@@ -372,22 +408,27 @@ window.deleteStockModal = async function(stockId) {
   }
 };
 
-// 9. 画像プレビュー
+// 9. 新規登録の画像プレビュー（自動圧縮付き）
 function setupImagePreview() {
   const imageInput = document.getElementById("reg-image");
   const previewBox = document.getElementById("image-preview");
 
   if (!imageInput) return;
 
-  imageInput.addEventListener("change", (e) => {
+  imageInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        currentUploadedImage = event.target.result;
+      try {
+        previewBox.innerHTML = "画像を圧縮中...";
+        // 最大幅800px・画質70%で高速＆軽量圧縮
+        currentUploadedImage = await compressImage(file, 800, 0.7);
         previewBox.innerHTML = `<img src="${currentUploadedImage}" alt="プレビュー">`;
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("画像の処理に失敗しました", error);
+        alert("画像の処理に失敗しました。");
+        currentUploadedImage = null;
+        previewBox.innerHTML = "画像未選択";
+      }
     } else {
       currentUploadedImage = null;
       previewBox.innerHTML = "画像未選択";
@@ -502,11 +543,22 @@ function setupForms() {
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const name = document.getElementById("reg-name").value;
-      const location = document.getElementById("reg-location-select").value;
-      const homeCount = parseInt(document.getElementById("reg-home-count").value) || 0;
-      const churchCount = parseInt(document.getElementById("reg-church-count").value) || 0;
-      const memo = document.getElementById("reg-memo").value.trim();
+      const nameInput = document.getElementById("reg-name");
+      const locationSelect = document.getElementById("reg-location-select");
+      const homeCountInput = document.getElementById("reg-home-count");
+      const churchCountInput = document.getElementById("reg-church-count");
+      const memoInput = document.getElementById("reg-memo");
+
+      const name = nameInput ? nameInput.value.trim() : "";
+      const location = locationSelect ? locationSelect.value : "";
+      const homeCount = homeCountInput ? parseInt(homeCountInput.value) || 0 : 0;
+      const churchCount = churchCountInput ? parseInt(churchCountInput.value) || 0 : 0;
+      const memo = memoInput ? memoInput.value.trim() : "";
+
+      if (!name) {
+        alert("資材名を入力してください。");
+        return;
+      }
 
       const newId = String(Date.now());
       const newStock = {
@@ -518,7 +570,6 @@ function setupForms() {
         memo: memo
       };
 
-      // Firestoreに新規追加
       await setDoc(doc(db, "stocks", newId), newStock);
       stocks.push({ id: newId, ...newStock });
 
@@ -575,7 +626,6 @@ function setupForms() {
         addHistory(`${userName}：貸出中の「${targetStock.name}」を ${count}個 利用（消費）しました`);
       }
 
-      // Firestoreの在庫数と履歴を更新
       await updateDoc(doc(db, "stocks", targetStock.id), {
         homeCount: targetStock.homeCount,
         churchCount: targetStock.churchCount
@@ -593,7 +643,6 @@ function addHistory(text) {
   const now = new Date();
   const timeStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
   histories.unshift({ time: timeStr, text: text });
-  // 履歴が長くなりすぎないよう最大50件に絞る（任意）
   if (histories.length > 50) histories.pop();
   saveHistoriesToFirestore();
   renderHistoryList();
