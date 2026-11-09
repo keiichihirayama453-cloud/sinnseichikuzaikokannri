@@ -6,13 +6,14 @@ import {
 
 // ⚠️ご自身のFirebaseコンソールの設定情報をここに入れてください
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
+    apiKey: "AIzaSyDwHracU4oGb2GRMBbqf-YwM6oVsjnI7uo",
+    authDomain: "sinnsei22-e6297.firebaseapp.com",
+    projectId: "sinnsei22-e6297",
+    storageBucket: "sinnsei22-e6297.firebasestorage.app",
+    messagingSenderId: "865822138754",
+    appId: "1:865822138754:web:04b5d8c5c0ec799c886f9b"
+  };
+
 
 // Firebaseの初期化
 const app = initializeApp(firebaseConfig);
