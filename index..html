@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>資材在庫管理アプリ</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- 下部固定ナビゲーションバー はそのままでOK -->
+
+  <!-- Firebaseの読み込みと、あなたのアプリコード -->
+  <script type="module" src="script.js"></script>
+</body>
+</html>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header>
+    <h1>資材在庫管理</h1>
+  </header>
+
+  <!-- メインコンテンツエリア -->
+  <main>
+    <!-- 1. 在庫タブ -->
+    <section id="tab-stock" class="tab-content active">
+      <div class="stock-header-area">
+        <h2>在庫一覧</h2>
+        <!-- モード切り替えボタン -->
+        <button id="btn-toggle-mode" class="btn-mode-toggle">管理モードにする</button>
+      </div>
+      <div id="stock-list" class="card-list"></div>
+    </section>
+
+    <!-- 2. 編集タブ -->
+    <section id="tab-edit" class="tab-content">
+      <h2>在庫の移動・利用</h2>
+      <form id="form-edit" class="app-form">
+        <div class="form-group">
+          <label>操作種別</label>
+          <select id="edit-type">
+            <option value="move">宅 ➔ 貸出</option>
+            <option value="return">貸出 ➔ 宅（返却）</option>
+            <option value="use">資材の消費・利用</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>対象の資材と場所</label>
+          <select id="edit-stock-id"></select>
+        </div>
+
+        <div class="form-group">
+          <label>数量</label>
+          <input type="number" id="edit-count" min="1" value="1" required>
+        </div>
+
+        <div class="form-group">
+          <label>担当者名（誰が操作したか）</label>
+          <input type="text" id="edit-user" placeholder="例: 山田" required>
+        </div>
+
+        <button type="submit" class="btn-primary">変更を保存する</button>
+      </form>
+    </section>
+
+    <!-- 3. 履歴タブ -->
+    <section id="tab-history" class="tab-content">
+      <h2>操作履歴</h2>
+      <ul id="history-list" class="history-list"></ul>
+    </section>
+
+    <!-- 4. 登録タブ -->
+    <section id="tab-register" class="tab-content">
+      <h2>新規資材の登録</h2>
+      <form id="form-register" class="app-form" style="margin-bottom: 30px;">
+        <div class="form-group">
+          <label>資材名</label>
+          <input type="text" id="reg-name" placeholder="例: スタイロフォーム 20mm" required>
+        </div>
+
+        <div class="form-group">
+          <label>保管場所（どの宅か選択）</label>
+          <select id="reg-location-select" required></select>
+        </div>
+
+        <div class="form-group">
+          <label>宅の初期個数</label>
+          <input type="number" id="reg-home-count" min="0" value="0" required>
+        </div>
+
+        <div class="form-group">
+          <label>初期貸出数</label>
+          <input type="number" id="reg-church-count" min="0" value="0" required>
+        </div>
+
+        <div class="form-group">
+          <label>資材の写真（任意）</label>
+          <input type="file" id="reg-image" accept="image/*">
+          <div id="image-preview" class="preview-box">画像未選択</div>
+        </div>
+
+        <div class="form-group">
+          <label>メモ（任意）</label>
+          <textarea id="reg-memo" rows="3" placeholder="サイズや保管上の注意など"></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary">新規資材を登録</button>
+      </form>
+
+      <h2>新しい「宅」の追加</h2>
+      <form id="form-add-location" class="app-form" style="margin-bottom: 30px;">
+        <div class="form-group">
+          <label>新しい宅の名前</label>
+          <input type="text" id="new-location-name" placeholder="例: Cさん宅" required>
+        </div>
+        <button type="submit" class="btn-secondary">宅を追加する</button>
+      </form>
+
+      <h2>「宅」の管理・削除</h2>
+      <div class="app-form">
+        <ul id="location-manage-list" class="manage-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- 資材詳細・編集ポップアップモーダル -->
+  <div id="modal-detail" class="modal-overlay">
+    <div class="modal-content">
+      <span id="modal-close" class="modal-close">&times;</span>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 下部固定ナビゲーションバー -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="tab-stock">
+      <span class="icon">📦</span>
+      <span class="label">在庫</span>
+    </button>
+    <button class="nav-btn" data-tab="tab-edit">
+      <span class="icon">✏️</span>
+      <span class="label">編集</span>
+    </button>
+    <button class="nav-btn" data-tab="tab-history">
+      <span class="icon">📜</span>
+      <span class="label">履歴</span>
+    </button>
+    <button class="nav-btn" data-tab="tab-register">
+      <span class="icon">➕</span>
+      <span class="label">登録</span>
+    </button>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
