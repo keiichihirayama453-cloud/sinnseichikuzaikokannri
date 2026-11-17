@@ -6,13 +6,14 @@ import {
 
 // Firebaseコンソールの設定情報
 const firebaseConfig = {
-  apiKey: "AIzaSyDwHracU4oGb2GRMBbqf-YwM6oVsjnI7uo",
-  authDomain: "sinnsei22-e6297.firebaseapp.com",
-  projectId: "sinnsei22-e6297",
-  storageBucket: "sinnsei22-e6297.firebasestorage.app",
-  messagingSenderId: "865822138754",
-  appId: "1:865822138754:web:04b5d8c5c0ec799c886f9b"
-};
+    apiKey: "AIzaSyCWbRgKKvKEHZM2yYEbMMtxNMrEb2lPxsI",
+    authDomain: "sensitization.firebaseapp.com",
+    projectId: "sensitization",
+    storageBucket: "sensitization.firebasestorage.app",
+    messagingSenderId: "278775825763",
+    appId: "1:278775825763:web:8cade894c83c4f023fff56"
+  };
+
 
 // Firebaseの初期化
 const app = initializeApp(firebaseConfig);
@@ -96,8 +97,8 @@ async function loadDataFromFirestore() {
 
     if (stocks.length === 0) {
       stocks = [
-        { id: "1", location: "Aさん宅", category: "材料類", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
-        { id: "2", location: "Bさん宅", category: "材料類", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。" }
+        { id: "1", location: "Aさん宅", category: "材料類", subCategory: "ベニヤ板", name: "木材（ベニヤ板）", homeCount: 12, churchCount: 5, image: null, memo: "厚さ12mm。" },
+        { id: "2", location: "Bさん宅", category: "材料類", subCategory: "発泡スチロール", name: "スタイロフォーム", homeCount: 8, churchCount: 2, image: null, memo: "20mm厚。" }
       ];
       for (const s of stocks) {
         await setDoc(doc(db, "stocks", s.id), s);
@@ -119,6 +120,7 @@ async function loadDataFromFirestore() {
     renderLocationManageList();
     updateLocationSelectOptions();
     updateEditSelectOptions();
+    updateSubCategoryOptions();
 
   } catch (error) {
     console.error("データの読み込みに失敗しました: ", error);
@@ -169,7 +171,7 @@ function setupModeToggle() {
   });
 }
 
-// 3. 在庫一覧表示（宅内を分類ごとにグループ化して表示）
+// 3. 在庫一覧表示（宅 ➔ 分類 ➔ 小分類 の階層でグループ化して表示）
 function renderStockList() {
   const listContainer = document.getElementById("stock-list");
   if (!listContainer) return;
@@ -195,32 +197,47 @@ function renderStockList() {
     let categoriesHTML = "";
     let hasAnyItem = false;
 
-    // 分類ごとにアイテムを仕分けして表示
     CATEGORIES.forEach(cat => {
       const catItems = items.filter(s => (s.category || "材料類") === cat);
 
       if (catItems.length > 0) {
         hasAnyItem = true;
-        let itemsHTML = "";
-        catItems.forEach(stock => {
-          itemsHTML += `
-            <div class="stock-item-row" data-id="${stock.id}">
-              <div class="stock-info">
-                <div class="stock-title">${escapeHTML(stock.name)}</div>
-                <div class="stock-counts">
-                  <span class="count-badge">宅: <strong>${stock.homeCount}</strong>個</span>
-                  <span class="count-badge">貸出: <strong>${stock.churchCount}</strong>個</span>
+        let subCategoriesHTML = "";
+
+        // 小分類ごとにグループ化
+        const subCategories = [...new Set(catItems.map(s => s.subCategory || "その他"))];
+
+        subCategories.forEach(sub => {
+          const subItems = catItems.filter(s => (s.subCategory || "その他") === sub);
+          let itemsHTML = "";
+
+          subItems.forEach(stock => {
+            itemsHTML += `
+              <div class="stock-item-row" data-id="${stock.id}">
+                <div class="stock-info">
+                  <div class="stock-title">${escapeHTML(stock.name)}</div>
+                  <div class="stock-counts">
+                    <span class="count-badge">宅: <strong>${stock.homeCount}</strong>個</span>
+                    <span class="count-badge">貸出: <strong>${stock.churchCount}</strong>個</span>
+                  </div>
                 </div>
+                <div style="color: #bbb; font-size: 0.9rem;">〉</div>
               </div>
-              <div style="color: #bbb; font-size: 0.9rem;">〉</div>
+            `;
+          });
+
+          subCategoriesHTML += `
+            <div class="subcategory-group" style="margin-left: 10px; margin-bottom: 8px;">
+              <div style="font-size: 0.75rem; font-weight: bold; color: #4a5568; background: #edf2f7; padding: 2px 6px; border-radius: 3px; display: inline-block; margin-bottom: 4px;">🏷️ ${escapeHTML(sub)}</div>
+              ${itemsHTML}
             </div>
           `;
         });
 
         categoriesHTML += `
           <div class="category-group" style="margin-bottom: 10px;">
-            <div style="font-size: 0.8rem; font-weight: bold; color: #3182ce; background: #ebf8ff; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px;">📂 ${cat}</div>
-            ${itemsHTML}
+            <div style="font-size: 0.8rem; font-weight: bold; color: #3182ce; background: #ebf8ff; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px;">📂 ${cat}</div>
+            ${subCategoriesHTML}
           </div>
         `;
       }
@@ -239,6 +256,22 @@ function renderStockList() {
       const stockId = row.getAttribute("data-id");
       openStockDetailModal(stockId);
     });
+  });
+
+  updateSubCategoryOptions();
+}
+
+// 小分類のdatalist候補を更新する関数
+function updateSubCategoryOptions() {
+  const datalist = document.getElementById("sub-category-list");
+  if (!datalist) return;
+  
+  const subCategories = [...new Set(stocks.map(s => s.subCategory).filter(Boolean))];
+  datalist.innerHTML = "";
+  subCategories.forEach(sub => {
+    const opt = document.createElement("option");
+    opt.value = sub;
+    datalist.appendChild(opt);
   });
 }
 
@@ -273,6 +306,7 @@ function openStockDetailModal(stockId) {
 
   const memoText = stock.memo ? escapeHTML(stock.memo) : "メモはありません";
   const categoryText = stock.category || "材料類";
+  const subCategoryText = stock.subCategory || "未設定";
 
   let actionButtonsHTML = "";
   if (isStockManageMode) {
@@ -288,7 +322,7 @@ function openStockDetailModal(stockId) {
     <h3 style="margin-bottom:12px; border-bottom:2px solid #edf2f7; padding-bottom:6px;">${escapeHTML(stock.name)}</h3>
     ${imgHTML}
     <div style="font-size:0.9rem; margin-bottom: 6px;">
-      <strong>分類:</strong> 📂 ${escapeHTML(categoryText)}
+      <strong>分類:</strong> 📂 ${escapeHTML(categoryText)} / 🏷️ ${escapeHTML(subCategoryText)}
     </div>
     <div style="font-size:0.9rem; margin-bottom: 6px;">
       <strong>保管場所:</strong> 🏠 ${escapeHTML(stock.location)}
@@ -304,7 +338,7 @@ function openStockDetailModal(stockId) {
   modal.style.display = "flex";
 }
 
-// 6. モーダル内を「編集フォーム」に切り替える（分類の選択も可能に）
+// 6. モーダル内を「編集フォーム」に切り替える
 window.switchToEditMode = function(stockId) {
   const stock = stocks.find(s => s.id === stockId);
   if (!stock) return;
@@ -323,6 +357,13 @@ window.switchToEditMode = function(stockId) {
     categoryOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
   });
 
+  // 既存の小分類リストを取得
+  const existingSubCategories = [...new Set(stocks.map(s => s.subCategory).filter(Boolean))];
+  let subCategoryOptionsHTML = "";
+  existingSubCategories.forEach(sub => {
+    subCategoryOptionsHTML += `<option value="${sub}">`;
+  });
+
   body.innerHTML = `
     <h3 style="margin-bottom:12px;">資材の編集</h3>
     <div class="form-group" style="margin-bottom:10px;">
@@ -332,6 +373,11 @@ window.switchToEditMode = function(stockId) {
     <div class="form-group" style="margin-bottom:10px;">
       <label>分類</label>
       <select id="edit-modal-category">${categoryOptions}</select>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>小分類（選択または新規入力）</label>
+      <input type="text" id="edit-modal-subcategory" list="edit-sub-category-list" value="${escapeHTML(stock.subCategory || "")}" placeholder="例: ペンキ、ベニヤ板など">
+      <datalist id="edit-sub-category-list">${subCategoryOptionsHTML}</datalist>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
       <label>保管場所</label>
@@ -380,6 +426,7 @@ window.saveStockModal = async function(stockId) {
 
   const newName = document.getElementById("edit-modal-name").value.trim();
   const newCategory = document.getElementById("edit-modal-category").value;
+  const newSubCategory = document.getElementById("edit-modal-subcategory").value.trim();
   const newLocation = document.getElementById("edit-modal-location").value;
   const newHome = parseInt(document.getElementById("edit-modal-home").value);
   const newChurch = parseInt(document.getElementById("edit-modal-church").value);
@@ -396,6 +443,7 @@ window.saveStockModal = async function(stockId) {
 
   stock.name = newName;
   stock.category = newCategory;
+  stock.subCategory = newSubCategory;
   stock.location = newLocation;
   stock.homeCount = newHome;
   stock.churchCount = newChurch;
@@ -408,6 +456,7 @@ window.saveStockModal = async function(stockId) {
   await updateDoc(doc(db, "stocks", stock.id), {
     name: stock.name,
     category: stock.category,
+    subCategory: stock.subCategory,
     location: stock.location,
     homeCount: stock.homeCount,
     churchCount: stock.churchCount,
@@ -574,6 +623,7 @@ function setupForms() {
 
       const nameInput = document.getElementById("reg-name");
       const categorySelect = document.getElementById("reg-category");
+      const subCategoryInput = document.getElementById("reg-subcategory");
       const locationSelect = document.getElementById("reg-location-select");
       const homeCountInput = document.getElementById("reg-home-count");
       const churchCountInput = document.getElementById("reg-church-count");
@@ -581,6 +631,7 @@ function setupForms() {
 
       const name = nameInput ? nameInput.value.trim() : "";
       const category = categorySelect ? categorySelect.value : "材料類";
+      const subCategory = subCategoryInput ? subCategoryInput.value.trim() : "";
       const location = locationSelect ? locationSelect.value : "";
       const homeCount = homeCountInput ? parseInt(homeCountInput.value) || 0 : 0;
       const churchCount = churchCountInput ? parseInt(churchCountInput.value) || 0 : 0;
@@ -595,6 +646,7 @@ function setupForms() {
       const newStock = {
         name: name,
         category: category,
+        subCategory: subCategory,
         location: location,
         homeCount: homeCount,
         churchCount: churchCount,
@@ -605,7 +657,7 @@ function setupForms() {
       await setDoc(doc(db, "stocks", newId), newStock);
       stocks.push({ id: newId, ...newStock });
 
-      addHistory(`【新規登録】${location}に「${name}（${category}）」を登録しました。（宅:${homeCount}個 / 貸出:${churchCount}個）`);
+      addHistory(`【新規登録】${location}に「${name}（${category} / ${subCategory || "未設定"}）」を登録しました。`);
 
       renderStockList();
       updateEditSelectOptions();
@@ -682,6 +734,6 @@ function addHistory(text) {
 
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    tag => ({ '&': '&', '<': '<', '>': '>', "'": ''', '"': '"' }[tag] || tag)
   );
 }
