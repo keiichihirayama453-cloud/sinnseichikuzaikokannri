@@ -72,7 +72,7 @@
           <input type="text" id="reg-name" placeholder="例: スタイロフォーム 20mm" required>
         </div>
 
-        <!-- 🌟 追加した「分類」の選択肢 -->
+        <!-- 「分類」の選択肢 -->
         <div class="form-group">
           <label>分類</label>
           <select id="reg-category" required>
@@ -81,6 +81,15 @@
             <option value="小物類">小物類</option>
             <option value="装飾類">装飾類</option>
           </select>
+        </div>
+
+        <!-- 小分類の入力欄（選択＋自由入力対応） -->
+        <div class="form-group">
+          <label>小分類（選択または新規入力）</label>
+          <input type="text" id="reg-subcategory" list="sub-category-list" placeholder="例: ペンキ、ベニヤ板など">
+          <datalist id="sub-category-list">
+            <!-- 過去に入力された小分類がここに追加されます -->
+          </datalist>
         </div>
 
         <div class="form-group">
@@ -131,7 +140,7 @@
   <!-- 資材詳細・編集ポップアップモーダル -->
   <div id="modal-detail" class="modal-overlay">
     <div class="modal-content">
-      <span id="modal-close" class="modal-close">&times;</span>
+      <span id="modal-close" class="modal-close">×</span>
       <div id="modal-body"></div>
     </div>
   </div>
