@@ -13,10 +13,14 @@ import {
 // Firebaseコンソールの設定情報
 
 const firebaseConfig = {
+    apiKey: "AIzaSyCWbRgKKvKEHZM2yYEbMMtxNMrEb2lPxsI",
+    authDomain: "sensitization.firebaseapp.com",
+    projectId: "sensitization",
+    storageBucket: "sensitization.firebasestorage.app",
+    messagingSenderId: "278775825763",
+    appId: "1:278775825763:web:8cade894c83c4f023fff56"
+  };
 
- 
-
-};
 
 
 
