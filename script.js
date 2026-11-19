@@ -680,7 +680,12 @@ function addHistory(text) {
 }
 
 function escapeHTML(str) {
-  return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&', '<': '<', '>': '>', "'": ''', '"': '"' }[tag] || tag)
-  );
+  return String(str).replace(/[&<>'"]/g, (tag) => ({
+    "&": "&",
+    "<": "<",
+    ">": ">",
+    "'": "'",
+    '"': """
+  }[tag] || tag));
 }
+
